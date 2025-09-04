@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Глобальные переменные
-API_TOKEN = os.getenv("8217867570:AAFj1Pqc84R0uBnXbvW8ooLUQ0xFHSrfvLs")
+API_TOKEN = os.getenv("")
 CHANNEL_USERNAME = "@ai_genom"
-ADMIN_ID = os.getenv("607694709")
+ADMIN_ID = os.getenv("")
 
 if not API_TOKEN:
     raise ValueError("Необходимо указать BOT_TOKEN в .env файле")
