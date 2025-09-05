@@ -8,6 +8,7 @@ from aiogram.exceptions import TelegramForbiddenError
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 from dotenv import load_dotenv
+from moviepy.editor import VideoFileClip
 
 # Настройка логгирования
 logging.basicConfig(
@@ -24,14 +25,6 @@ logger = logging.getLogger(__name__)
 # Загрузка переменных окружения
 load_dotenv()
 
-# Глобальные переменные
-API_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "@ai_genom"
-ADMIN_ID = os.getenv("ADMIN_ID")
-
-if not API_TOKEN:
-    raise ValueError("Необходимо указать BOT_TOKEN в .env файле")
-
 # Константы
 MAX_DURATION = 60
 MAX_CONCURRENT_CONVERSIONS = 3
@@ -40,7 +33,7 @@ SEMAPHORE_TIMEOUT = 300.0  # 5 минут
 CONVERSION_TIMEOUT = 600.0  # 10 минут
 STUCK_THRESHOLD = 600  # 10 минут для мониторинга
 
-# Глобальные состояния (будут инициализированы при запуске)
+# Глобальные переменные (будут инициализированы в main())
 bot = None
 dp = None
 semaphore = None
@@ -200,7 +193,7 @@ def get_stats():
 async def check_subscription(user_id: int) -> bool:
     logger.info(f"Проверка подписки пользователя: {user_id}")
     try:
-        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
+        member = await bot.get_chat_member(chat_id="@ai_genom", user_id=user_id)
         is_subscribed = member.status in ['member', 'administrator', 'creator']
         logger.info(f"Пользователь {user_id} {'подписан' if is_subscribed else 'не подписан'} на канал")
         return is_subscribed
@@ -234,7 +227,6 @@ async def subscription_required(message: types.Message) -> bool:
 # Синхронная функция для конвертации видео
 def convert_video_process(video_path: str, gif_path: str) -> bool:
     try:
-        from moviepy.editor import VideoFileClip
         clip = VideoFileClip(video_path)
         clip.write_gif(gif_path, fps=15)
         clip.close()
@@ -259,10 +251,10 @@ async def monitor_queue():
             async with queue_lock:
                 if len(processing_queue) > QUEUE_LIMIT * 2:
                     logger.critical(f"Критический размер очереди: {len(processing_queue)}")
-                    if ADMIN_ID and bot:
+                    if os.getenv("ADMIN_ID") and bot:
                         try:
                             await bot.send_message(
-                                ADMIN_ID,
+                                os.getenv("ADMIN_ID"),
                                 f"🚨 КРИТИЧЕСКАЯ СИТУАЦИЯ!\n"
                                 f"Размер очереди: {len(processing_queue)}\n"
                                 f"Активных конвертаций: {active_conversions}\n"
@@ -330,7 +322,6 @@ async def process_video_with_semaphore(message: types.Message, video_local_path:
             
             if success and not shutdown_flag:
                 try:
-                    from moviepy.editor import VideoFileClip
                     clip = VideoFileClip(video_local_path)
                     duration = clip.duration
                     clip.close()
@@ -422,7 +413,8 @@ async def show_stats(message: types.Message):
     user_id = user.id
     logger.info(f"Получена команда /stats от пользователя: {user_id}")
     
-    if str(user_id) != str(ADMIN_ID):
+    admin_id = os.getenv("ADMIN_ID")
+    if str(user_id) != str(admin_id):
         logger.warning(f"Пользователь {user_id} попытался получить статистику без прав администратора")
         await message.answer("❌ У вас нет прав для просмотра статистики")
         return
@@ -467,7 +459,8 @@ async def queue_status(message: types.Message):
     user_id = user.id
     logger.info(f"Получена команда /queue_status от пользователя: {user_id}")
     
-    if str(user_id) != str(ADMIN_ID):
+    admin_id = os.getenv("ADMIN_ID")
+    if str(user_id) != str(admin_id):
         logger.warning(f"Пользователь {user_id} попытался получить статус очереди без прав администратора")
         await message.answer("❌ У вас нет прав для просмотра статуса очереди")
         return
@@ -499,7 +492,8 @@ async def queue_status(message: types.Message):
 @dp.message(Command("clear_queue"))
 async def clear_queue(message: types.Message):
     user_id = message.from_user.id
-    if str(user_id) != str(ADMIN_ID):
+    admin_id = os.getenv("ADMIN_ID")
+    if str(user_id) != str(admin_id):
         await message.answer("❌ У вас нет прав для этой команды")
         return
     
@@ -520,7 +514,8 @@ async def clear_queue(message: types.Message):
 async def shutdown_bot(message: types.Message):
     global shutdown_flag, monitoring_task
     user_id = message.from_user.id
-    if str(user_id) != str(ADMIN_ID):
+    admin_id = os.getenv("ADMIN_ID")
+    if str(user_id) != str(admin_id):
         await message.answer("❌ У вас нет прав для этой команды")
         return
     
@@ -538,9 +533,10 @@ async def shutdown_bot(message: types.Message):
 
 @dp.message(Command("start_bot"))
 async def start_bot_command(message: types.Message):
-    global shutdown_flag, bot, dp, monitoring_task
+    global shutdown_flag, monitoring_task
     user_id = message.from_user.id
-    if str(user_id) != str(ADMIN_ID):
+    admin_id = os.getenv("ADMIN_ID")
+    if str(user_id) != str(admin_id):
         await message.answer("❌ У вас нет прав для этой команды")
         return
     
@@ -548,11 +544,9 @@ async def start_bot_command(message: types.Message):
         await message.answer("✅ Бот уже запущен!")
         return
     
-    # Запускаем бота
     shutdown_flag = False
     logger.info(f"Администратор {user_id} запустил бота командой /start_bot")
     
-    # Запускаем мониторинг
     if monitoring_task and monitoring_task.done():
         monitoring_task = asyncio.create_task(monitor_queue())
     elif not monitoring_task:
@@ -628,7 +622,6 @@ async def handle_video(message: types.Message):
 
     try:
         logger.info(f"Проверка длительности видео для пользователя {user_id}")
-        from moviepy.editor import VideoFileClip
         clip = VideoFileClip(video_local_path)
         if clip.duration > MAX_DURATION:
             logger.warning(f"Видео пользователя {user_id} слишком длинное: {clip.duration} сек")
@@ -673,9 +666,13 @@ async def handle_other_messages(message: types.Message):
     logger.info(f"Пользователь {user_id} прошел проверку, отправляем инструкцию")
     await message.answer("📥 Пожалуйста, отправьте видео файл (до 1 минуты) для конвертации в GIF.")
 
-# Функция инициализации бота
+# Функция инициализации
 def initialize_bot():
     global bot, dp, semaphore, executor
+    
+    API_TOKEN = os.getenv("BOT_TOKEN")
+    if not API_TOKEN:
+        raise ValueError("Необходимо указать BOT_TOKEN в .env файле")
     
     bot = Bot(token=API_TOKEN)
     dp = Dispatcher()
@@ -684,26 +681,16 @@ def initialize_bot():
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_CONVERSIONS)
     executor = ProcessPoolExecutor(max_workers=MAX_CONCURRENT_CONVERSIONS)
     
-    # Регистрация хендлеров
-    dp.message.register(send_welcome, Command("start"))
-    dp.message.register(show_stats, Command("stats"))
-    dp.message.register(queue_status, Command("queue_status"))
-    dp.message.register(clear_queue, Command("clear_queue"))
-    dp.message.register(shutdown_bot, Command("shutdown"))
-    dp.message.register(start_bot_command, Command("start_bot"))
-    dp.callback_query.register(check_subscription_callback, lambda callback: callback.data == "check_subscription")
-    dp.message.register(handle_video, lambda message: message.video)
-    dp.message.register(handle_other_messages)
+    logger.info("Бот инициализирован успешно")
 
-# Запуск бота
+# Основная функция
 async def main():
-    global monitoring_task
-    
     logger.info("Инициализация бота...")
     initialize_bot()
     init_db()
     
     # Запускаем мониторинг
+    global monitoring_task
     monitoring_task = asyncio.create_task(monitor_queue())
     
     logger.info("Бот успешно запущен")
