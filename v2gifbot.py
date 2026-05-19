@@ -200,7 +200,7 @@ def get_stats():
 async def check_subscription(user_id: int) -> bool:
     logger.info(f"Проверка подписки пользователя: {user_id}")
     try:
-        member = await bot.get_chat_member(chat_id="@ai_genom", user_id=user_id)
+        member = await bot.get_chat_member(chat_id="@edit_stickers", user_id=user_id)
         is_subscribed = member.status in ['member', 'administrator', 'creator']
         logger.info(f"Пользователь {user_id} {'подписан' if is_subscribed else 'не подписан'} на канал")
         return is_subscribed
@@ -219,12 +219,12 @@ async def subscription_required(message: types.Message) -> bool:
         logger.warning(f"Пользователь {user_id} не подписан на канал")
         keyboard = types.InlineKeyboardMarkup(
             inline_keyboard=[
-                [types.InlineKeyboardButton(text="📢 Подписаться на канал", url=f"https://t.me/ai_genom")],
+                [types.InlineKeyboardButton(text="📢 Подписаться на канал", url=f"https://t.me/edit_stickers")],
                 [types.InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_subscription")]
             ]
         )
         await message.answer(
-            "⚠️ Для использования бота необходимо подписаться на наш канал @ai_genom",
+            "⚠️ Для использования бота необходимо подписаться на наш канал @edit_stickers",
             reply_markup=keyboard
         )
         return False
@@ -375,12 +375,12 @@ async def send_welcome(message: types.Message):
         logger.info(f"Пользователь {user_id} не подписан, отправляем кнопки подписки")
         keyboard = types.InlineKeyboardMarkup(
             inline_keyboard=[
-                [types.InlineKeyboardButton(text="📢 Подписаться на канал", url=f"https://t.me/ai_genom")],
+                [types.InlineKeyboardButton(text="📢 Подписаться на канал", url=f"https://t.me/edit_stickers")],
                 [types.InlineKeyboardButton(text="✅ Проверить подписку", callback_data="check_subscription")]
             ]
         )
         await message.answer(
-            "👋 Привет! Для использования бота необходимо подписаться на наш канал @ai_genom\n\n"
+            "👋 Привет! Для использования бота необходимо подписаться на наш канал @edit_stickers\n\n"
             "После подписки нажмите кнопку 'Проверить подписку'",
             reply_markup=keyboard
         )
